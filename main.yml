@@ -1,0 +1,56 @@
+name: Flutter Web Deployment UAT and QA
+#This workflow is triggered on a push to tags that start with uat- or qa-.
+on:
+  push:
+    tags:
+      - 'uat-*'
+      - 'qa-*'
+
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v2
+
+      - name: Set up Java
+        uses: actions/setup-java@v1
+        with:
+          java-version: '12.x'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: '3.16.3'
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+#This step runs only if the pushed tag starts with "uat-"
+      - name: Build Flutter Web App (UAT)
+        if: startsWith(github.ref, 'refs/tags/uat-')
+        run: flutter build web --dart-define=ENV=uat
+
+#This step runs only if the pushed tag starts with "qa-"
+      - name: Build Flutter Web App (QA)
+        if: startsWith(github.ref, 'refs/tags/qa-')
+        run: flutter build web --dart-define=ENV=qa
+
+#This step runs only if the pushed tag starts with "uat-"
+      - name: Deploy to S3 (UAT)
+        if: startsWith(github.ref, 'refs/tags/uat-')
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region us-east-1
+          aws s3 sync ./build/web s3://ssi-web-test --delete
+
+#This step runs only if the pushed tag starts with "qa-"
+      - name: Deploy to S3 (QA)
+        if: startsWith(github.ref, 'refs/tags/qa-')
+        run: |
+          aws configure set aws_access_key_id ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws configure set aws_secret_access_key ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws configure set region us-east-1
+          aws s3 sync ./build/web s3://ssi-web-qa --delete
